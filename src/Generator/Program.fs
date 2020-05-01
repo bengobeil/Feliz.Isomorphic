@@ -28,13 +28,6 @@ module ObjectTypeName =
         |> FormattedQualifiedName
         |> ObjectTypeName
 
-type FieldName<'Format> = FieldName of 'Format
-module FieldName =
-    let format (FieldName (RawQualifiedName name)) =
-        name
-        |> String.replace "get_" ""
-        |> FormattedQualifiedName
-        |> FieldName
 type FunctionName<'Format> = FunctionName of 'Format
 module FunctionName =
     let fromFieldInfo (fieldInfo: System.Reflection.MethodInfo) =
@@ -46,25 +39,33 @@ module FunctionName =
         |> FormattedQualifiedName
         |> FunctionName
 
-type FieldInfo<'Format> =
-    | Literal of FieldName<'Format>
-    | NonLiteral of FieldName<'Format>
+type FieldName<'Format> =
+    | Literal of 'Format
+    | NonLiteral of 'Format
     with
         static member Map (x, f) =
             match x with
             | Literal name -> (Literal << f) name
             | NonLiteral name -> (NonLiteral << f) name
+
+module FieldName =
+    let format (fieldName: FieldName<RawQualifiedName>) =
+        let format (RawQualifiedName name) =
+            name
+            |> String.replace "get_" ""
+            |> FormattedQualifiedName
+            
+        format <!> fieldName
+        
     
 module FieldInfo =
     let hasLiteralAttribute (fieldInfo: System.Reflection.FieldInfo) =
         fieldInfo.GetCustomAttributes<LiteralAttribute>() |> Seq.tryExactlyOne
         
-    let toFieldName (fieldInfo: System.Reflection.FieldInfo) =
-        (FieldName << RawQualifiedName) <| fieldInfo.DeclaringType.FullName ++ "." ++ fieldInfo.Name
-        
     let fromFieldInfo (fieldInfo: System.Reflection.FieldInfo) =
-        hasLiteralAttribute fieldInfo
-        |> (function Some _ -> Literal | _ -> NonLiteral) <| (toFieldName fieldInfo)
+        (fieldInfo.DeclaringType.FullName ++ "." ++ fieldInfo.Name)
+        |> RawQualifiedName
+        |> (hasLiteralAttribute fieldInfo |> (function Some _ -> Literal | _ -> NonLiteral))
         
 type ModuleFullName<'Format> = ModuleFullName of 'Format
 module ModuleFullName =
@@ -74,7 +75,7 @@ module ModuleFullName =
         |> FormattedQualifiedName
         |> ModuleFullName
 
-type Module<'Format> = { FullName: ModuleFullName<'Format>; Fields: FieldInfo<'Format> seq; Functions: FunctionName<'Format> seq; NestedTypes: TypeInfo<'Format> seq }
+type Module<'Format> = { FullName: ModuleFullName<'Format>; Fields: FieldName<'Format> seq; Functions: FunctionName<'Format> seq; NestedTypes: TypeInfo<'Format> seq }
 and TypeInfo<'Format> =
     | ObjectType of ObjectTypeName<'Format>
     | Module of Module<'Format>
@@ -85,57 +86,51 @@ module TypeInfo =
         | true -> Some <| IsModule
         | false -> None
         
-    let fromTypes (types: Type seq) =
-        let rec fromType (t: Type) =
-            match t with
-            | IsModule ->
-                let fields =
-                    t.GetFields()
-                    |> filter (fun fieldInfo -> fieldInfo.Attributes.HasFlag (FieldAttributes.Public &&& FieldAttributes.Static))
-                    |> map FieldInfo.fromFieldInfo
-                    
-                let functions =
-                    t.GetMethods()
-                    |> filter (fun method -> method.Attributes.HasFlag (MethodAttributes.Public &&& MethodAttributes.Static))
-                    |> exclude (fun method -> method.Attributes.HasFlag (MethodAttributes.HideBySig))
-                    |> map FunctionName.fromFieldInfo
-                    
-                let nestedTypes =
-                    t
-                    |> Assembly.getNestedTypes
-                    |> map fromType
-                    
-                Module <| {FullName = ModuleFullName <| RawQualifiedName t.FullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes }
+    let rec fromType (t: Type) =
+        match t with
+        | IsModule ->
+            let fields =
+                t.GetFields()
+                |> filter (fun fieldInfo -> fieldInfo.Attributes.HasFlag (FieldAttributes.Public &&& FieldAttributes.Static))
+                |> map FieldInfo.fromFieldInfo
                 
-            | t -> (ObjectType << ObjectTypeName << RawQualifiedName) t.FullName
+            let functions =
+                t.GetMethods()
+                |> filter (fun method -> method.Attributes.HasFlag (MethodAttributes.Public &&& MethodAttributes.Static))
+                |> exclude (fun method -> method.Attributes.HasFlag (MethodAttributes.HideBySig))
+                |> map FunctionName.fromFieldInfo
+                
+            let nestedTypes =
+                t
+                |> Assembly.getNestedTypes
+                |> map fromType
+                
+            Module <| {FullName = ModuleFullName <| RawQualifiedName t.FullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes }
             
-        types
-        |> filter (fun t -> t.IsPublic)
-        |> map fromType
+        | t -> (ObjectType << ObjectTypeName << RawQualifiedName) t.FullName
         
-    let formatTypeNames (typeInfos: TypeInfo<RawQualifiedName> seq) =
-        let rec formatTypeName = function
-            | ObjectType objectTypeName ->
-                ObjectType <| ObjectTypeName.format objectTypeName
-            | Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes} ->
-                let fullName = ModuleFullName.format fullName
+    let rec formatTypeName = function
+        | ObjectType objectTypeName ->
+            ObjectType <| ObjectTypeName.format objectTypeName
+        | Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes} ->
+            let fullName = ModuleFullName.format fullName
+            
+            let fields =
+                fields
+                |> map FieldName.format
+            
+            let functions =
+                functions
+                |> map FunctionName.format
                 
-                let fields =
-                    fields
-                    |> map (map FieldName.format)
+            let nestedTypes =
+                nestedTypes
+                |> map formatTypeName
                 
-                let functions =
-                    functions
-                    |> map FunctionName.format
-                    
-                let nestedTypes =
-                    nestedTypes
-                    |> map formatTypeName
-                    
-                Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes}
-                
-        typeInfos
-        |> map formatTypeName
+            Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes}
+//        
+//    let toDefinitions typeInfos =
+//        let rec toDefinition
 
 module AssemblyDefinitions =
     let felizBulma = 
@@ -197,9 +192,10 @@ module Program =
             |> Assembly.getRootTypes
             |> exclude (fun t -> t.FullName.StartsWith "<StartupCode$")
             |> exclude (fun t -> t.FullName.Contains "@")
+            |> filter (fun t -> t.IsPublic)
             |> sortBy (fun x -> String.toLower x.FullName)
-            |> TypeInfo.fromTypes
-            |> TypeInfo.formatTypeNames
+            |> map TypeInfo.fromType
+            |> map TypeInfo.formatTypeName
             
         workflow feliz
         |> iter (printfn "%A")
