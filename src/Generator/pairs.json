@@ -7,15 +7,21 @@
       ]
     },
     "server": {
-      "name": "Feliz.ViewEngine"
+      "name": "Feliz.ViewEngine",
+      "includeAliases": [
+      ]
     }
   },
   {
     "client": {
-      "name": "Feliz.Bulma"
+      "name": "Feliz.Bulma",
+      "includeAliases": [
+      ]
     },
     "server": {
-      "name": "Feliz.Bulma.ViewEngine"
+      "name": "Feliz.Bulma.ViewEngine",
+      "includeAliases": [
+      ]
     }
   }
 ]
