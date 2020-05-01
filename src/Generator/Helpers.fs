@@ -1,5 +1,7 @@
 ﻿namespace Feliz.Isomorphic.Generator
 
+open System.Text
+
 [<AutoOpen>]
 module FSharpPlus =
     open FSharpPlus
@@ -11,6 +13,11 @@ module FSharpPlus =
 module StringBuilder =
     // http://fssnip.net/7WR
     open System.Text
+    
+    let append (sb: StringBuilder) (str: string) = sb.Append str |> ignore; sb
+    
+    
+    let inline (+=|) (sb: StringBuilder) (str: string) = sb.AppendLine str
     type StringBuffer = StringBuilder -> unit
 
     type StringBuilderBuilder () =
@@ -30,12 +37,7 @@ module StringBuilder =
                     (f e.Current) b
         
         member __.While (p: unit -> bool, f: StringBuffer) =
-            fun (b: StringBuilder) -> while p () do f b
-            
-        member __.Run (f: StringBuffer) =
-            let b = StringBuilder()
-            do f b
-            b.ToString()
+            fun (b: StringBuilder) -> while p () do f b    
 
     let stringBuilder = new StringBuilderBuilder ()
     
@@ -46,6 +48,32 @@ module StringBuilder =
         s1
         s2
     }
+    
+module StringBuffer =
+    open FSharpPlus
+    let append b1 b2 = stringBuilder {
+        yield! b1
+        yield! b2
+    }
+    
+    let appendLine buffer (str: string): StringBuffer = stringBuilder {
+        yield! buffer
+        "\n"
+        str
+    }
+    let appendToNewLine b1 b2 = stringBuilder {
+        yield! b1
+        "\n"
+        yield! b2
+    }
+    
+    let inline reduce (buffers: StringBuffer seq) =
+        fold appendToNewLine ignore buffers
+    
+    let run f =
+        let sb = StringBuilder()
+        f sb
+        sb.ToString()
 
 [<RequireQualifiedAccess>]
 module String =

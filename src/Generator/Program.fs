@@ -1,6 +1,7 @@
 ﻿namespace Feliz.Isomorphic.Generator
 
 open System
+open System.Text
 open FSharpPlus
 open System.Reflection
 open Microsoft.FSharp.Reflection
@@ -19,40 +20,45 @@ module Assembly =
 type RawQualifiedName = RawQualifiedName of string
 type FormattedQualifiedName = FormattedQualifiedName of string
 type AliasDefinition = AliasDefinition of string
+module AliasDefinition =
+    let value (AliasDefinition def) = def
+    
 module FormattedQualifiedName =
     let (|SignificantName|) (FormattedQualifiedName name) =
         name.Split '.'
         |> Array.last
         |> fun name -> SignificantName name
 
-type ObjectTypeName<'Format> = ObjectTypeName of 'Format with
-    static member Map (ObjectTypeName x, f) = ObjectTypeName (f x)
+type TypeName<'Format> = TypeName of 'Format with
+    static member Map (TypeName x, f) = TypeName (f x)
     
 module ObjectTypeName =
-    let format (ObjectTypeName (RawQualifiedName name)) =
+    let format (TypeName (RawQualifiedName name)) =
         name
         |> String.replace "+" "."
         |> String.replace "Module." "."
         |> FormattedQualifiedName
-        |> ObjectTypeName
+        |> TypeName
         
-    let toDefinition objectTypeName: ObjectTypeName<AliasDefinition> =
+    let toDefinition objectTypeName: TypeName<AliasDefinition> =
         map (fun (FormattedQualifiedName.SignificantName significantName & FormattedQualifiedName fullName) -> stringBuilder {
             "type"
             " "
             significantName
             " = "
             fullName
-        } >> AliasDefinition) objectTypeName
+        } >> (AliasDefinition << StringBuffer.run)) objectTypeName
 
 type FunctionName<'Format> = FunctionName of 'Format with
     static member Map (FunctionName x, f) = FunctionName (f x)
+    
 module FunctionName =
     let fromFieldInfo (fieldInfo: System.Reflection.MethodInfo) =
         (FunctionName << RawQualifiedName) <| fieldInfo.DeclaringType.FullName ++ "." ++ fieldInfo.Name
         
     let format (FunctionName (RawQualifiedName name)) =
         name
+        |> String.replace "+" "."
         |> String.replace "get_" ""
         |> FormattedQualifiedName
         |> FunctionName
@@ -64,7 +70,7 @@ module FunctionName =
             significantName
             " = "
             fullName
-        } >> AliasDefinition) functionName
+        } >> (AliasDefinition << StringBuffer.run)) functionName
 
 type FieldName<'Format> =
     | Literal of 'Format
@@ -79,6 +85,7 @@ module FieldName =
     let format (fieldName: FieldName<RawQualifiedName>) =
         let format (RawQualifiedName name) =
             name
+            |> String.replace "+" "."
             |> String.replace "get_" ""
             |> FormattedQualifiedName
             
@@ -95,7 +102,7 @@ module FieldName =
     let toDefinition fieldName =
         fieldName
         |> map (fun (FormattedQualifiedName.SignificantName significantName & FormattedQualifiedName fullName) ->
-            AliasDefinition <| stringBuilder {
+            (AliasDefinition << StringBuffer.run) <| stringBuilder {
             "let"
             " "
             match fieldName with
@@ -106,13 +113,29 @@ module FieldName =
             fullName
         })
         
-type ModuleFullName<'Format> = ModuleFullName of 'Format with
-    static member Map (ModuleFullName x, f) = ModuleFullName (f x)
+type ModuleName<'Format> = ModuleName of 'Format with
+    static member Map (ModuleName x, f) = ModuleName (f x)
     
+type ConstructName<'Format> =
+    | Field of FieldName<'Format>
+    | Function of FunctionName<'Format>
+    | Type of TypeName<'Format>
+    | Module of ModuleName<'Format>
+    with
+        static member Map (x,f) =
+            match x with
+            | Field r -> Field <| map f r
+            | Function r -> Function <| map f r
+            | Type r -> Type <| map f r
+            | Module r -> Module <| map f r
+    
+module ConstructName =
+    let value (Field (Literal name | NonLiteral name) | Function (FunctionName name) | Type (TypeName name) | Module (ModuleName name)) =
+        name
 
-type Module<'Format> = { FullName: ModuleFullName<'Format>; Fields: FieldName<'Format> seq; Functions: FunctionName<'Format> seq; NestedTypes: TypeInfo<'Format> seq }
+type Module<'Format> = { FullName: ModuleName<'Format>; Fields: FieldName<'Format> seq; Functions: FunctionName<'Format> seq; NestedTypes: TypeInfo<'Format> seq }
 and TypeInfo<'Format> =
-    | ObjectType of ObjectTypeName<'Format>
+    | ObjectType of TypeName<'Format>
     | Module of Module<'Format> with
     static member Map (x, f) =
         match x with
@@ -121,11 +144,12 @@ and TypeInfo<'Format> =
             Module {FullName = map f fullName; Fields = map (map f) fields; Functions = map (map f) functions; NestedTypes = map (map f) nestedTypes}
     
 module ModuleFullName =
-    let format (ModuleFullName (RawQualifiedName name)) =
+    let format (ModuleName (RawQualifiedName name)) =
         name
+        |> String.replace "+" "."
         |> String.replace "Module" ""
         |> FormattedQualifiedName
-        |> ModuleFullName
+        |> ModuleName
     
 
 module TypeInfo =
@@ -151,11 +175,12 @@ module TypeInfo =
             let nestedTypes =
                 t
                 |> Assembly.getNestedTypes
+                |> sortBy (fun x -> String.toLower x.FullName)
                 |> map fromType
                 
-            Module <| {FullName = ModuleFullName <| RawQualifiedName t.FullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes }
+            Module <| {FullName = ModuleName <| RawQualifiedName t.FullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes }
             
-        | t -> (ObjectType << ObjectTypeName << RawQualifiedName) t.FullName
+        | t -> (ObjectType << TypeName << RawQualifiedName) t.FullName
         
     let rec formatTypeName = function
         | ObjectType objectTypeName ->
@@ -178,14 +203,14 @@ module TypeInfo =
             Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes}
         
     let rec toDefinition typeInfo =
-        let rec toModuleDefinition {FullName = (ModuleFullName (FormattedQualifiedName.SignificantName name) as fullName); Fields = fields; Functions = functions; NestedTypes = nestedTypes} =
+        let rec toModuleDefinition {FullName = (ModuleName (FormattedQualifiedName.SignificantName name) as fullName); Fields = fields; Functions = functions; NestedTypes = nestedTypes} =
             let fullName = 
                 map (fun (FormattedQualifiedName.SignificantName name) -> stringBuilder {
                     "module"
                     " "
                     name
                     " ="
-                } >> AliasDefinition) fullName
+                } >> (AliasDefinition << StringBuffer.run)) fullName
                 
             let fields =
                 fields
@@ -206,6 +231,51 @@ module TypeInfo =
             ObjectType <| ObjectTypeName.toDefinition objectName
         | Module module' ->
             Module <| toModuleDefinition module'
+        
+    let inline getFullDefinitionBuffer typeInfos =
+        let tab = "    "
+        
+        let rec getDefinitionForTypeInfo (prefix: string) = function
+            | ObjectType (TypeName (AliasDefinition def)) -> stringBuilder {prefix;def}
+            | Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes} ->
+                let (++) = StringBuilder.(++)
+                let childrenPrefix = prefix + tab
+                
+                let constructDefinition ctor prefix: 'a -> StringBuffer =
+                    ctor
+                    >> ConstructName.value
+                    >> AliasDefinition.value
+                    >> ((++) prefix)
+                    
+                let moduleDef =
+                    fullName
+                    |> constructDefinition ConstructName.Module prefix
+                
+                let fieldsDef =
+                    fields
+                    |> map (constructDefinition ConstructName.Field childrenPrefix)
+                    |> StringBuffer.reduce
+                    
+                let functionsDef =
+                    functions
+                    |> map (constructDefinition ConstructName.Function childrenPrefix)
+                    |> StringBuffer.reduce
+                    
+                let nestedTypeDefs =
+                    nestedTypes
+                    |> map (getDefinitionForTypeInfo childrenPrefix)
+                    |> StringBuffer.reduce
+                    
+                seq {
+                    StringBuffer.append moduleDef fieldsDef
+                    functionsDef
+                    nestedTypeDefs
+                }
+                |> StringBuffer.reduce
+                
+        typeInfos
+        |> map (getDefinitionForTypeInfo String.Empty)
+        |> StringBuffer.reduce    
 
 module AssemblyDefinitions =
     let felizBulma = 
@@ -259,20 +329,46 @@ module AssemblyDefinitions =
 module Program =
     open AssemblyDefinitions
     
+    let writeToFile path content =
+            System.IO.File.WriteAllText(sprintf "%s/%s"__SOURCE_DIRECTORY__ path, content)
+            
+    let getAliasDefinitionsBufferForAssembly {Name = name} =
+        Assembly.Load name
+        |> Assembly.getRootTypes
+        |> exclude (fun t -> t.FullName.StartsWith "<StartupCode$")
+        |> exclude (fun t -> t.FullName.Contains "@")
+        |> filter (fun t -> t.IsPublic)
+        |> sortBy (fun x -> String.toLower x.FullName)
+        |> map TypeInfo.fromType
+        |> map TypeInfo.formatTypeName
+        |> map TypeInfo.toDefinition
+        |> TypeInfo.getFullDefinitionBuffer
+        
+    let buildFileContent namespace' clientAssemblyName (clientDefinitionsBuffer: StringBuffer) (serverDefinitionsBuffer: StringBuffer) =
+        stringBuilder {
+            seq {
+            sprintf "namespace %s.%s" namespace' clientAssemblyName
+            ""
+            "#if FABLE_COMPILER"
+            ""
+            }
+            yield! clientDefinitionsBuffer
+            "\n#else\n\n"
+            yield! serverDefinitionsBuffer
+            "\n#endif"
+        }
+        
+    let produceFile assemblyPair =
+        let clientRootName = assemblyPair.Client.Name
+        let clientDefinitions = getAliasDefinitionsBufferForAssembly assemblyPair.Client
+        let serverDefinitions = getAliasDefinitionsBufferForAssembly assemblyPair.Server
+        buildFileContent "Feliz.Isomorphic" clientRootName clientDefinitions serverDefinitions
+        |> StringBuffer.run
+        |> writeToFile ("../Feliz.Isomorphic/" + clientRootName + ".fs")
+        
     [<EntryPoint>]
     let main argv =
-            
-        let workflow {Name = name} =
-            Assembly.Load name
-            |> Assembly.getRootTypes
-            |> exclude (fun t -> t.FullName.StartsWith "<StartupCode$")
-            |> exclude (fun t -> t.FullName.Contains "@")
-            |> filter (fun t -> t.IsPublic)
-            |> sortBy (fun x -> String.toLower x.FullName)
-            |> map TypeInfo.fromType
-            |> map TypeInfo.formatTypeName
-            |> map TypeInfo.toDefinition
-            
-        workflow feliz
-        |> iter (printfn "%A")
+        [felizPair
+         felizBulmaPair]
+        |> iter produceFile
         0

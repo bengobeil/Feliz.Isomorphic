@@ -48,5 +48,7 @@ NUGET
     Feliz.ViewEngine (0.19)
       FSharp.Core (>= 4.7)
     FSharp.Core (4.7.1)
+    FSharp.Data (3.3.3)
+      FSharp.Core (>= 4.3.4)
     FSharpPlus (1.1)
       FSharp.Core (>= 4.6.2)

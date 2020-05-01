@@ -1,0 +1,21 @@
+﻿[
+  {
+    "client": {
+      "name": "Feliz",
+      "includeAliases": [
+        "Feliz.ReactElement"
+      ]
+    },
+    "server": {
+      "name": "Feliz.ViewEngine"  
+    }
+  },
+  {
+    "client": {
+      "name": "Feliz.Bulma"
+    },
+    "server": {
+      "name": "Feliz.Bulma.ViewEngine"
+    }
+  }
+]

@@ -7,6 +7,8 @@ ProjectSection(SolutionItems) = preProject
 	paket.dependencies = paket.dependencies
 EndProjectSection
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Feliz.Isomorphic", "src\Feliz.Isomorphic\Feliz.Isomorphic.fsproj", "{CF52D170-2CA2-425C-BA42-77EED15656DD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,5 +19,9 @@ Global
 		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF52D170-2CA2-425C-BA42-77EED15656DD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF52D170-2CA2-425C-BA42-77EED15656DD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF52D170-2CA2-425C-BA42-77EED15656DD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF52D170-2CA2-425C-BA42-77EED15656DD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
