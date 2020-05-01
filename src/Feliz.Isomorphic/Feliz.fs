@@ -1,6 +1,6 @@
 namespace Feliz.Isomorphic.Feliz
 
-#if !FABLE_COMPILER
+#if FABLE_COMPILER
 
 
 type AriaDropEffect = Feliz.AriaDropEffect
