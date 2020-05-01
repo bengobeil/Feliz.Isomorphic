@@ -9,6 +9,11 @@ EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Feliz.Isomorphic", "src\Feliz.Isomorphic\Feliz.Isomorphic.fsproj", "{CF52D170-2CA2-425C-BA42-77EED15656DD}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fake", "fake", "{6B8F71F4-3A3C-4B75-99D2-77318B71EB9A}"
+ProjectSection(SolutionItems) = preProject
+	build.fsx = build.fsx
+EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
