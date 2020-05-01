@@ -277,6 +277,8 @@ module Program =
     open FSharp.Data
     
     type Pair = JsonProvider<"pairs.json", SampleIsList = true>
+    type AssemblyPair = Pair.Root
+    
     type AssemblyDefinition =
         | Client of Pair.Client
         | Server of Pair.Server
@@ -284,6 +286,10 @@ module Program =
     let name = function
         | Client c -> c.Name
         | Server s -> s.Name
+        
+    let aliasesToInclude = function
+        | Client c -> c.IncludeAliases
+        | Server s -> s.IncludeAliases |> map string
     
     let writeToFile path content =
             System.IO.File.WriteAllText(sprintf "%s/%s"__SOURCE_DIRECTORY__ path, content)
@@ -299,6 +305,10 @@ module Program =
         |> sortBy (fun x -> String.toLower x.FullName)
         |> map TypeInfo.fromType
         |> map TypeInfo.formatTypeName
+        <|> (assembly
+             |> aliasesToInclude
+             |> map (ObjectType << TypeName << FormattedQualifiedName)
+             |> Seq.ofArray)
         |> map TypeInfo.toDefinition
         |> TypeInfo.getFullDefinitionBuffer
         
@@ -316,7 +326,7 @@ module Program =
             "\n#endif"
         }
             
-    let produceFile (assemblyPair:Pair.Root) =
+    let produceFile (assemblyPair:AssemblyPair) =
         let clientRootName = assemblyPair.Client.Name
         let clientDefinitions = getAliasDefinitionsBufferForAssembly (Client assemblyPair.Client)
         let serverDefinitions = getAliasDefinitionsBufferForAssembly (Server assemblyPair.Server)

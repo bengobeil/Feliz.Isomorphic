@@ -1,6 +1,6 @@
 namespace Feliz.Isomorphic.Feliz
 
-#if FABLE_COMPILER
+#if !FABLE_COMPILER
 
 
 type AriaDropEffect = Feliz.AriaDropEffect
@@ -603,6 +603,7 @@ type textDecorationLine = Feliz.textDecorationLine
 type textDecorationStyle = Feliz.textDecorationStyle
 type transform = Feliz.transform
 type transitionProperty = Feliz.transitionProperty
+type ReactElement = Feliz.ReactElement
 #else
 
 

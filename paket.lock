@@ -30,6 +30,7 @@ NUGET
       Fable.Browser.Dom (>= 1.0)
       Fable.Core (>= 3.1.5)
       FSharp.Core (>= 4.7)
+    FAKE (5.16)
     Feliz (0.81)
       Fable.Core (>= 3.1.5)
       Fable.React (>= 6.0)
