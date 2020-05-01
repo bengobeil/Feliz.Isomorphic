@@ -5,7 +5,7 @@
         <PackageId>Feliz.Isomorphic</PackageId>
         <Description>Polymorphic Type aliases for Server-Side Rendering development with Feliz</Description>
         <Version>0.1.0</Version>
-        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/bengobeil/Feliz.Isomorphic.git</RepositoryUrl>
         <PackageProjectUrl>https://github.com/bengobeil/Feliz.Isomorphic</PackageProjectUrl>
         <Authors>Benjamin Gobeil</Authors>
