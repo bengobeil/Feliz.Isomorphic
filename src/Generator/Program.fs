@@ -18,8 +18,16 @@ module Assembly =
         
 type RawQualifiedName = RawQualifiedName of string
 type FormattedQualifiedName = FormattedQualifiedName of string
+type AliasDefinition = AliasDefinition of string
+module FormattedQualifiedName =
+    let (|SignificantName|) (FormattedQualifiedName name) =
+        name.Split '.'
+        |> Array.last
+        |> fun name -> SignificantName name
 
-type ObjectTypeName<'Format> = ObjectTypeName of 'Format
+type ObjectTypeName<'Format> = ObjectTypeName of 'Format with
+    static member Map (ObjectTypeName x, f) = ObjectTypeName (f x)
+    
 module ObjectTypeName =
     let format (ObjectTypeName (RawQualifiedName name)) =
         name
@@ -27,8 +35,18 @@ module ObjectTypeName =
         |> String.replace "Module." "."
         |> FormattedQualifiedName
         |> ObjectTypeName
+        
+    let toDefinition objectTypeName: ObjectTypeName<AliasDefinition> =
+        map (fun (FormattedQualifiedName.SignificantName significantName & FormattedQualifiedName fullName) -> stringBuilder {
+            "type"
+            " "
+            significantName
+            " = "
+            fullName
+        } >> AliasDefinition) objectTypeName
 
-type FunctionName<'Format> = FunctionName of 'Format
+type FunctionName<'Format> = FunctionName of 'Format with
+    static member Map (FunctionName x, f) = FunctionName (f x)
 module FunctionName =
     let fromFieldInfo (fieldInfo: System.Reflection.MethodInfo) =
         (FunctionName << RawQualifiedName) <| fieldInfo.DeclaringType.FullName ++ "." ++ fieldInfo.Name
@@ -38,6 +56,15 @@ module FunctionName =
         |> String.replace "get_" ""
         |> FormattedQualifiedName
         |> FunctionName
+        
+    let toDefinition functionName =
+        map (fun (FormattedQualifiedName.SignificantName significantName & FormattedQualifiedName fullName) -> stringBuilder {
+            "let"
+            " "
+            significantName
+            " = "
+            fullName
+        } >> AliasDefinition) functionName
 
 type FieldName<'Format> =
     | Literal of 'Format
@@ -57,8 +84,6 @@ module FieldName =
             
         format <!> fieldName
         
-    
-module FieldInfo =
     let hasLiteralAttribute (fieldInfo: System.Reflection.FieldInfo) =
         fieldInfo.GetCustomAttributes<LiteralAttribute>() |> Seq.tryExactlyOne
         
@@ -67,18 +92,41 @@ module FieldInfo =
         |> RawQualifiedName
         |> (hasLiteralAttribute fieldInfo |> (function Some _ -> Literal | _ -> NonLiteral))
         
-type ModuleFullName<'Format> = ModuleFullName of 'Format
+    let toDefinition fieldName =
+        fieldName
+        |> map (fun (FormattedQualifiedName.SignificantName significantName & FormattedQualifiedName fullName) ->
+            AliasDefinition <| stringBuilder {
+            "let"
+            " "
+            match fieldName with
+            | Literal _ -> "[<Literal>] "
+            | _ -> ""
+            significantName
+            " = "
+            fullName
+        })
+        
+type ModuleFullName<'Format> = ModuleFullName of 'Format with
+    static member Map (ModuleFullName x, f) = ModuleFullName (f x)
+    
+
+type Module<'Format> = { FullName: ModuleFullName<'Format>; Fields: FieldName<'Format> seq; Functions: FunctionName<'Format> seq; NestedTypes: TypeInfo<'Format> seq }
+and TypeInfo<'Format> =
+    | ObjectType of ObjectTypeName<'Format>
+    | Module of Module<'Format> with
+    static member Map (x, f) =
+        match x with
+        | ObjectType x -> map f x |> ObjectType    
+        | Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes} ->
+            Module {FullName = map f fullName; Fields = map (map f) fields; Functions = map (map f) functions; NestedTypes = map (map f) nestedTypes}
+    
 module ModuleFullName =
     let format (ModuleFullName (RawQualifiedName name)) =
         name
         |> String.replace "Module" ""
         |> FormattedQualifiedName
         |> ModuleFullName
-
-type Module<'Format> = { FullName: ModuleFullName<'Format>; Fields: FieldName<'Format> seq; Functions: FunctionName<'Format> seq; NestedTypes: TypeInfo<'Format> seq }
-and TypeInfo<'Format> =
-    | ObjectType of ObjectTypeName<'Format>
-    | Module of Module<'Format>
+    
 
 module TypeInfo =
     let (|IsModule|_|) (t: Type) =
@@ -92,7 +140,7 @@ module TypeInfo =
             let fields =
                 t.GetFields()
                 |> filter (fun fieldInfo -> fieldInfo.Attributes.HasFlag (FieldAttributes.Public &&& FieldAttributes.Static))
-                |> map FieldInfo.fromFieldInfo
+                |> map FieldName.fromFieldInfo
                 
             let functions =
                 t.GetMethods()
@@ -128,9 +176,36 @@ module TypeInfo =
                 |> map formatTypeName
                 
             Module {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes}
-//        
-//    let toDefinitions typeInfos =
-//        let rec toDefinition
+        
+    let rec toDefinition typeInfo =
+        let rec toModuleDefinition {FullName = (ModuleFullName (FormattedQualifiedName.SignificantName name) as fullName); Fields = fields; Functions = functions; NestedTypes = nestedTypes} =
+            let fullName = 
+                map (fun (FormattedQualifiedName.SignificantName name) -> stringBuilder {
+                    "module"
+                    " "
+                    name
+                    " ="
+                } >> AliasDefinition) fullName
+                
+            let fields =
+                fields
+                |> map FieldName.toDefinition
+                
+            let functions =
+                functions
+                |> map FunctionName.toDefinition
+                
+            let nestedTypes =
+                nestedTypes
+                |> map toDefinition
+                
+            {FullName = fullName; Fields = fields; Functions = functions; NestedTypes = nestedTypes}
+            
+        match typeInfo with
+        | ObjectType objectName ->
+            ObjectType <| ObjectTypeName.toDefinition objectName
+        | Module module' ->
+            Module <| toModuleDefinition module'
 
 module AssemblyDefinitions =
     let felizBulma = 
@@ -196,6 +271,7 @@ module Program =
             |> sortBy (fun x -> String.toLower x.FullName)
             |> map TypeInfo.fromType
             |> map TypeInfo.formatTypeName
+            |> map TypeInfo.toDefinition
             
         workflow feliz
         |> iter (printfn "%A")
