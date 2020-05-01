@@ -37,7 +37,7 @@ module StringBuilder =
                     (f e.Current) b
         
         member __.While (p: unit -> bool, f: StringBuffer) =
-            fun (b: StringBuilder) -> while p () do f b    
+            fun (b: StringBuilder) -> while p () do f b        
 
     let stringBuilder = new StringBuilderBuilder ()
     

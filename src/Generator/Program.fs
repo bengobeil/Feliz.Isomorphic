@@ -5,10 +5,6 @@ open System.Text
 open FSharpPlus
 open System.Reflection
 open Microsoft.FSharp.Reflection
-
-type DiscoverableAssembly = {Name: string; Exclusions: string list; IncludeAliases: string list}
-type IsomorphicAssemblyPair = {Client: DiscoverableAssembly; Server: DiscoverableAssembly}
-
 module Assembly =
     let getRootTypes (t: Assembly) =
         t.GetTypes()
@@ -275,65 +271,27 @@ module TypeInfo =
                 
         typeInfos
         |> map (getDefinitionForTypeInfo String.Empty)
-        |> StringBuffer.reduce    
-
-module AssemblyDefinitions =
-    let felizBulma = 
-        { Name = "Feliz.Bulma"
-          Exclusions = [
-              "Feliz.Bulma.ElementBuilders"
-              "Feliz.Bulma.PropertyBuilders"
-              "Feliz.Bulma.ClassLiterals"
-              "Feliz.Bulma.Operators"
-              "Feliz.Bulma.ElementLiterals"
-          ]
-          IncludeAliases = [] }
-
-    let felizBulmaViewEngine =
-        { Name = "Feliz.Bulma.ViewEngine"
-          Exclusions = [
-              "Feliz.Bulma.ViewEngine.ElementBuilders"
-              "Feliz.Bulma.ViewEngine.PropertyBuilders"
-              "Feliz.Bulma.ViewEngine.ClassLiterals"
-              "Feliz.Bulma.ViewEngine.Operators"
-              "Feliz.Bulma.ViewEngine.ElementLiterals"
-          ]
-          IncludeAliases = []}
-        
-    let feliz = {
-        Name = "Feliz"
-        Exclusions = [
-            
-        ]
-        IncludeAliases = [
-            "Feliz.ReactElement"
-        ]
-    }
-
-    let felizViewEngine = {
-        Name = "Feliz.ViewEngine"
-        Exclusions = [
-            
-        ]
-        IncludeAliases = []
-    }
-
-    let felizPair =
-        { Client = feliz
-          Server = felizViewEngine }
-
-    let felizBulmaPair =
-        { Client = felizBulma
-          Server = felizBulmaViewEngine }
+        |> StringBuffer.reduce
 
 module Program =
-    open AssemblyDefinitions
+    open FSharp.Data
+    
+    type Pair = JsonProvider<"pairs.json", SampleIsList = true>
+    type AssemblyDefinition =
+        | Client of Pair.Client
+        | Server of Pair.Server
+        
+    let name = function
+        | Client c -> c.Name
+        | Server s -> s.Name
     
     let writeToFile path content =
             System.IO.File.WriteAllText(sprintf "%s/%s"__SOURCE_DIRECTORY__ path, content)
             
-    let getAliasDefinitionsBufferForAssembly {Name = name} =
-        Assembly.Load name
+    let getAliasDefinitionsBufferForAssembly (assembly:AssemblyDefinition) =
+        assembly
+        |> name
+        |> Assembly.Load
         |> Assembly.getRootTypes
         |> exclude (fun t -> t.FullName.StartsWith "<StartupCode$")
         |> exclude (fun t -> t.FullName.Contains "@")
@@ -357,18 +315,17 @@ module Program =
             yield! serverDefinitionsBuffer
             "\n#endif"
         }
-        
-    let produceFile assemblyPair =
+            
+    let produceFile (assemblyPair:Pair.Root) =
         let clientRootName = assemblyPair.Client.Name
-        let clientDefinitions = getAliasDefinitionsBufferForAssembly assemblyPair.Client
-        let serverDefinitions = getAliasDefinitionsBufferForAssembly assemblyPair.Server
+        let clientDefinitions = getAliasDefinitionsBufferForAssembly (Client assemblyPair.Client)
+        let serverDefinitions = getAliasDefinitionsBufferForAssembly (Server assemblyPair.Server)
         buildFileContent "Feliz.Isomorphic" clientRootName clientDefinitions serverDefinitions
         |> StringBuffer.run
         |> writeToFile ("../Feliz.Isomorphic/" + clientRootName + ".fs")
         
     [<EntryPoint>]
     let main argv =
-        [felizPair
-         felizBulmaPair]
+        Pair.GetSamples()
         |> iter produceFile
         0

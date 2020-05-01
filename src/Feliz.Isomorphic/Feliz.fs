@@ -7,7 +7,7 @@ type AriaDropEffect = Feliz.AriaDropEffect
 type AriaRelevant = Feliz.AriaRelevant
 type borderStyle = Feliz.borderStyle
 
-module color =    
+module color =
     let [<Literal>] indianRed = Feliz.color.indianRed
     let [<Literal>] lightCoral = Feliz.color.lightCoral
     let [<Literal>] salmon = Feliz.color.salmon
