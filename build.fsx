@@ -50,11 +50,11 @@ Target.create "Clean" (fun _ ->
     |> Shell.cleanDirs 
 )
 
-Target.create "RunGenerator" (fun _ ->
+Target.create "Generate" (fun _ ->
     runDotNet "run" generatorPath 
 )
 
-Target.create "BuildIsomorphic" (fun _ ->
+Target.create "Build" (fun _ ->
     runDotNet "build" projectPath
 )
 
@@ -64,11 +64,11 @@ let publish projectPath = fun _ ->
     let nugetKey =
         match Environment.environVarOrNone "FELIZ_ISOMORPHIC_NUGET_KEY" with
         | Some nugetKey -> nugetKey
-        | None -> failwith "The Nuget API key must be set in a NUGET_KEY environmental variable"
+        | None -> failwith "The Nuget API key must be set in a FELIZ_ISOMORPHIC_NUGET_KEY environmental variable"
     let nupkg =
         Directory.findFirstMatchingFile "*.nupkg" (projectPath </> "bin" </> "Release")
         
-    let pushCmd = sprintf "nuget push %s -s nuget.org -k %s" nupkg nugetKey
+    let pushCmd = sprintf "nuget push %s -s https://www.nuget.org/api/v2/package/ -k %s" nupkg nugetKey
     runDotNet pushCmd projectPath
     
 Target.create "Publish" (publish projectPath)
@@ -77,7 +77,8 @@ Target.create "Publish" (publish projectPath)
 Target.create "All" ignore
 
 "Clean"
+  ==> "Generate"
   ==> "Build"
-  ==> "All"
+  ==> "Publish"
 
-Target.runOrDefault "All"
+Target.runOrDefault "Build"
