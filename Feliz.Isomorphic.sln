@@ -1,0 +1,21 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Generator", "src\Generator\Generator.fsproj", "{770B0329-945A-47B0-8FB5-1D8A97C8FABD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "paket", "paket", "{A67422A1-6398-4C3E-9344-1359E8FE0F2C}"
+ProjectSection(SolutionItems) = preProject
+	paket.dependencies = paket.dependencies
+EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{770B0329-945A-47B0-8FB5-1D8A97C8FABD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
